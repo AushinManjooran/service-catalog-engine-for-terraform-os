@@ -25,6 +25,7 @@ on:
         default: dev
         options:
           - dev
+
 permissions:
   id-token: write
   contents: read
@@ -35,6 +36,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Setup Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -45,8 +50,7 @@ jobs:
       uses: aws-actions/setup-sam@v2
     
     - name: SAM Build
-      run: |
-        sam build
+      run: sam build
 
     - name: SAM Deploy
       run: |
