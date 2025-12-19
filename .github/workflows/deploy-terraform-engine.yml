@@ -45,6 +45,15 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
+
+    - name: Prepare Go module for parameter parser
+      run: |
+        cd lambda-functions/terraform_open_source_parameter_parser
+        if [ ! -f go.mod ]; then
+          go mod init terraform_open_source_parameter_parser
+          go env -w GOPROXY=direct
+          go mod tidy
+        fi
         
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
