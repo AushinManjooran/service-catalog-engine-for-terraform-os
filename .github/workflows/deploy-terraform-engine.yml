@@ -66,4 +66,10 @@ jobs:
           --s3-bucket ${{ inputs.s3-bucket }} \
           --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
           --no-confirm-changeset \
-          --no-fail-on-empty-changeset
+          --no-fail-on-empty-changeset \
+          --parameter-overrides \
+            UseExistingVpc=true \
+            ExistingVpcId=vpc-07b75e408d387eee1 \
+            ExistingPublicSubnetIds="subnet-07e40da530f13309a,subnet-0ddd0ac63b9581ea3,subnet-078caadeb9cf65205" \
+            ExistingPrivateSubnetIds="subnet-07fdc92a24deda7ba,subnet-01b69ef77b721e3c5,subnet-029adae6961cc3092" \
+            ExistingSecurityGroupIds="sg-06d5d3bf746143942"

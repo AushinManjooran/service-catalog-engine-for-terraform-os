@@ -28,6 +28,8 @@ Conditions:
     - { Ref: 'RIPMoreThan1AZParameter' }
     - 'true'
 
+  CreateNewVpc: !Equals [!Ref UseExistingVpc, "false"]
+  
 Parameters:
   ServiceCatalogEndpoint:
     Default: ""
@@ -111,11 +113,38 @@ Parameters:
     Default: t2.medium
     Description: The type of EC2 instance used by the auto scaling group
     Type: String
+    
+  UseExistingVpc:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: "Whether to use an existing VPC instead of creating a new one"
+
+  ExistingVpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "ID of the existing VPC for TRE workers"
+    Default: ""
+
+  ExistingPublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "Public subnets for TRE worker instances"
+    Default: []
+
+  ExistingSecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: "Security Groups to attach to worker instances"
+    Default: []
+
+  ExistingPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "Existing private subnets for TRE worker instances"
+    Default: []
 
 Resources:
   # VPC for Terraform Reference Engine
   VPC:
     Type: AWS::EC2::VPC
+    Condition: CreateNewVpc
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsHostnames: True
@@ -127,6 +156,7 @@ Resources:
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
+    Condition: CreateNewVpc
     Properties:
       Tags:
         - Key: Name
@@ -134,12 +164,14 @@ Resources:
 
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
+    Condition: CreateNewVpc
     Properties:
       InternetGatewayId: !Ref InternetGateway
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   NatGatewayFromPublicSubnet1:
     Type: 'AWS::EC2::NatGateway'
+    Condition: CreateNewVpc
     Properties:
       Tags:
         - Key: Name
@@ -148,7 +180,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       
   NatGatewayFromPublicSubnet2:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::NatGateway'
     Properties:
       Tags:
@@ -158,7 +190,7 @@ Resources:
       SubnetId: !Ref PublicSubnet2
   
   NatGatewayFromPublicSubnet3:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::NatGateway'
     Properties:
       Tags:
@@ -169,17 +201,18 @@ Resources:
   
   ElasticIPAddress1:
     Type: 'AWS::EC2::EIP'
+    Condition: CreateNewVpc
     Properties:
       Domain: vpc
   
   ElasticIPAddress2:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::EIP'
     Properties:
       Domain: vpc
       
   ElasticIPAddress3:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::EIP'
     Properties:
       Domain: vpc
@@ -187,6 +220,7 @@ Resources:
   # Create Public Subnets
   PublicSubnet1:
     Type: AWS::EC2::Subnet
+    Condition: CreateNewVpc
     Properties:
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       CidrBlock: !Ref PublicSubnet1CIDR
@@ -194,10 +228,10 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePublicSubnet1
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   PublicSubnet2:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
@@ -206,10 +240,10 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePublicSubnet2
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   PublicSubnet3:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 2, !GetAZs '' ]
@@ -218,11 +252,12 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePublicSubnet3
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   # Create Public Route Table
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
+    Condition: CreateNewVpc
     DependsOn:
       - InternetGateway
       - InternetGatewayAttachment
@@ -230,10 +265,11 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePublicRouteTable
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   PublicRoute:
     Type: AWS::EC2::Route
+    Condition: CreateNewVpc
     DependsOn:
       - InternetGateway
       - InternetGatewayAttachment
@@ -245,19 +281,20 @@ Resources:
   # Associate Public Subnets
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateNewVpc
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet1
 
   PublicSubnet2RouteTableAssociation:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet2
 
   PublicSubnet3RouteTableAssociation:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
@@ -266,6 +303,7 @@ Resources:
   # Create Private Subnets
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
+    Condition: CreateNewVpc
     Properties:
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       CidrBlock: !Ref PrivateSubnet1CIDR
@@ -273,10 +311,10 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePrivateSubnet1
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   PrivateSubnet2:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
@@ -285,10 +323,10 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePrivateSubnet2
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   PrivateSubnet3:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 2, !GetAZs '' ]
@@ -297,45 +335,47 @@ Resources:
       Tags:
         - Key: Name
           Value: TerraformEnginePrivateSubnet3
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
   
   # Create Private Route Table
   PrivateRouteTable1:
     Type: 'AWS::EC2::RouteTable'
+    Condition: CreateNewVpc
     Properties:
       Tags:
         - Key: Name
           Value: TerraformEnginePrivateRouteTable1
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
   
   PrivateRouteTable2:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::RouteTable'
     Properties:
       Tags:
         - Key: Name
           Value: TerraformEnginePrivateRouteTable2
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
   
   PrivateRouteTable3:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::RouteTable'
     Properties:
       Tags:
         - Key: Name
           Value: TerraformEnginePrivateRouteTable3
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
 
   # Create Routes in Private Subnet Route Tables
   PrivateRoute1:
     Type: 'AWS::EC2::Route'
+    Condition: CreateNewVpc
     Properties:
       RouteTableId: !Ref PrivateRouteTable1
       DestinationCidrBlock: '0.0.0.0/0'
       NatGatewayId: !Ref NatGatewayFromPublicSubnet1
       
   PrivateRoute2:
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::Route'
     Properties:
       RouteTableId: !Ref PrivateRouteTable2
@@ -343,7 +383,7 @@ Resources:
       NatGatewayId: !Ref NatGatewayFromPublicSubnet2
 
   PrivateRoute3:
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Type: 'AWS::EC2::Route'
     Properties:
       RouteTableId: !Ref PrivateRouteTable3
@@ -353,20 +393,21 @@ Resources:
   # Associate Private Subnets
   PrivateRouteTableAssociation1:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Condition: CreateNewVpc
     Properties:
       SubnetId: !Ref PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable1
   
   PrivateRouteTableAssociation2:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Condition: MoreThan1AZ
+    Condition: CreateNewVpc
     Properties:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable2
       
   PrivateRouteTableAssociation3:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Condition: MoreThan2AZs
+    Condition: CreateNewVpc
     Properties:
       SubnetId: !Ref PrivateSubnet3
       RouteTableId: !Ref PrivateRouteTable3
@@ -376,7 +417,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: TerraformEngineInstanceSecurityGroup
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 80
@@ -389,8 +430,9 @@ Resources:
 
   S3GatewayEndpoint:
     Type: AWS::EC2::VPCEndpoint
+    Condition: CreateNewVpc
     Properties:
-      VpcId: !Ref VPC
+      VpcId: !If [CreateNewVpc, !Ref VPC, !Ref ExistingVpcId]
       VpcEndpointType: Gateway
       PolicyDocument:
         Statement:
@@ -398,8 +440,6 @@ Resources:
           Action: s3:*
           Resource: '*'
           Principal: '*'
-      RouteTableIds:
-        - !Ref PublicRouteTable
       ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
 
   LoggingBucket:
@@ -521,9 +561,11 @@ Resources:
             Effect: Deny
             Principal:
               AWS: "*"
-            Condition:
-              StringNotEquals:
-                aws:SourceVpce: !Ref S3GatewayEndpoint
+            Condition: !If
+              - CreateNewVpc
+              - StringNotEquals:
+                  aws:SourceVpce: !Ref S3GatewayEndpoint
+              - {}  # Empty condition = always true when using existing VPC
             Resource:
               - !Sub ${TerraformStateBucket.Arn}/*
 
@@ -564,15 +606,15 @@ Resources:
       MinSize: 1
       DesiredCapacity: 1
       VPCZoneIdentifier: !If
-        - MoreThan2AZs
-        - - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
-          - !Ref PrivateSubnet3
+        - CreateNewVpc
         - !If
+          - MoreThan2AZs
+          - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+          - !If
             - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+            - [!Ref PrivateSubnet1]
+        - !Ref ExistingPrivateSubnetIds
       Tags:
         - Key: Name
           Value: TerraformEngineExecutionInstance
@@ -1039,17 +1081,17 @@ Resources:
       Handler: bootstrap
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - !Ref InstanceSecurityGroup
       Runtime: provided.al2
       Architectures:
         - x86_64
@@ -1070,17 +1112,19 @@ Resources:
       Handler: bootstrap
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: provided.al2
       Architectures:
         - x86_64
@@ -1335,17 +1379,19 @@ Resources:
           - Arn
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       PackageType: Zip
       CodeUri: lambda-functions/state_machine_lambdas
       Handler: select_worker_host.select
@@ -1394,17 +1440,19 @@ Resources:
           - Arn
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       PackageType: Zip
       CodeUri: lambda-functions/state_machine_lambdas
       Handler: get_state_file_outputs.parse
@@ -1466,17 +1514,19 @@ Resources:
           - Arn
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       PackageType: Zip
       CodeUri: lambda-functions/state_machine_lambdas
       Handler: poll_command_invocation.poll
@@ -1527,17 +1577,19 @@ Resources:
       Handler: send_apply_command.send
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: python3.9
       Timeout: 60
       Environment:
@@ -1588,17 +1640,19 @@ Resources:
       Handler: notify_provision_result.notify
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: python3.9
       Environment:
         Variables:
@@ -1661,17 +1715,19 @@ Resources:
       Handler: notify_update_result.notify
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: python3.9
       Environment:
         Variables:
@@ -1734,17 +1790,19 @@ Resources:
       Handler: send_destroy_command.send
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: python3.9
       Environment:
         Variables:
@@ -1768,17 +1826,19 @@ Resources:
       Handler: notify_terminate_result.notify
       VpcConfig:
         SubnetIds: !If
-          - MoreThan2AZs
-          - - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-            - !Ref PrivateSubnet3
+          - CreateNewVpc
           - !If
-            - MoreThan1AZ
-            - - !Ref PrivateSubnet1
-              - !Ref PrivateSubnet2
-            - - !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !GetAtt VPC.DefaultSecurityGroup
+            - MoreThan2AZs
+            - [!Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3]
+            - !If
+              - MoreThan1AZ
+              - [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+              - [!Ref PrivateSubnet1]
+          - !Ref ExistingPrivateSubnetIds
+        SecurityGroupIds: !If
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: python3.9
       Environment:
         Variables:
