@@ -128,17 +128,17 @@ Parameters:
   ExistingPublicSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "Public subnets for TRE worker instances"
-    Default: []
+    Default: ""
 
   ExistingSecurityGroupIds:
     Type: List<AWS::EC2::SecurityGroup::Id>
     Description: "Security Groups to attach to worker instances"
-    Default: []
+    Default: ""
 
   ExistingPrivateSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "Existing private subnets for TRE worker instances"
-    Default: []
+    Default: ""
 
 Resources:
   # VPC for Terraform Reference Engine
