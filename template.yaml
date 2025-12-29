@@ -1091,7 +1091,9 @@ Resources:
               - [!Ref PrivateSubnet1]
           - !Ref ExistingPrivateSubnetIds
         SecurityGroupIds: !If
-          - !Ref InstanceSecurityGroup
+          - CreateNewVpc
+          - [!GetAtt VPC.DefaultSecurityGroup]
+          - !Ref ExistingSecurityGroupIds
       Runtime: provided.al2
       Architectures:
         - x86_64
