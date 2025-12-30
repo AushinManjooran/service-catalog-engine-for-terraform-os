@@ -658,6 +658,8 @@ Resources:
               yum-utils: [ ]
               unzip: [ ]
           commands:
+            01_create_dir:                    
+              command: mkdir -p /usr/local/bin
             add_hashicorp_repo_to_yum:
               command:
                 sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
@@ -665,7 +667,7 @@ Resources:
               command: |
                 curl -o /tmp/terraform.zip https://releases.hashicorp.com/1.9.5/terraform_1.9.5_linux_amd64.zip
                 unzip /tmp/terraform.zip -d /tmp/
-                sudo mv /tmp/terraform /usr/local/bin/
+                install -m 0755 /tmp/terraform /usr/local/bin/terraform
                 terraform version
 
         install_boto3:
