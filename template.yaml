@@ -641,7 +641,6 @@ Resources:
           Fn::Base64:
             !Sub |
             #!/bin/bash -xe
-            yum update -y aws-cfn-bootstrap
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource TerraformAutoScalingLaunchTemplate --configsets setup --region ${AWS::Region}
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource TerraformAutoscalingGroup --region ${AWS::Region}
     Metadata:
