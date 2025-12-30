@@ -656,6 +656,7 @@ Resources:
           packages:
             yum:
               yum-utils: [ ]
+              unzip: [ ]
           commands:
             add_hashicorp_repo_to_yum:
               command:
