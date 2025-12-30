@@ -45,7 +45,7 @@ Parameters:
     Type: String
 
   TerraformCliVersion:
-    Default: 1.2.8
+    Default: 1.9.5
     Description: The Terraform CLI version to install on the EC2 instances
     Type: String
 
