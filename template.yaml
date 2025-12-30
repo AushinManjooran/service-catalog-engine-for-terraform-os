@@ -662,8 +662,7 @@ Resources:
               command:
                 sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
             install_terraform_cli_package:
-              command:
-                !Sub sudo yum -y install terraform-${TerraformCliVersion}
+              command: 'sudo yum -y install terraform'
 
         install_boto3:
           commands:
