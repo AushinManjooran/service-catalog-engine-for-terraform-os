@@ -657,6 +657,7 @@ Resources:
             yum:
               yum-utils: [ ]
               unzip: [ ]
+              coreutils: []
           commands:
             01_create_dir:                    
               command: mkdir -p /usr/local/bin
