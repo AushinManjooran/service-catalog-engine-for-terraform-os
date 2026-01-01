@@ -641,8 +641,10 @@ Resources:
           Fn::Base64:
             !Sub |
             #!/bin/bash -xe
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource TerraformAutoScalingLaunchTemplate --configsets setup --region ${AWS::Region}
-            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource TerraformAutoscalingGroup --region ${AWS::Region}
+            # Ensure CloudFormation helper scripts are available
+            yum install -y aws-cfn-bootstrap || pip3 install --upgrade https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource TerraformAutoScalingLaunchTemplate --configsets setup --region ${AWS::Region} 2>&1 | tee /var/log/cfn-init.log
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource TerraformAutoscalingGroup --region ${AWS::Region} 2>&1 | tee /var/log/cfn-signal.log
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -749,6 +751,15 @@ Resources:
               Action:
                 - sts:AssumeRole
               Resource: !Sub "arn:${AWS::Partition}:iam::*:role/*"
+        - PolicyName: CloudFormationSignalPolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:SignalResource
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStacks
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
 
   TerraformInstanceProfile:
     Type: AWS::IAM::InstanceProfile
