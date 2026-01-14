@@ -642,33 +642,45 @@ Resources:
             !Sub |
             #!/bin/bash -xe
             # Ensure CloudFormation helper scripts are available
-            yum install -y aws-cfn-bootstrap || pip3 install --upgrade https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+            yum install -y aws-cfn-bootstrap || python3 -m pip install --no-cache-dir https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource TerraformAutoScalingLaunchTemplate --configsets setup --region ${AWS::Region} 2>&1 | tee /var/log/cfn-init.log
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource TerraformAutoscalingGroup --region ${AWS::Region} 2>&1 | tee /var/log/cfn-signal.log
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
           setup:
+            - install_prereqs
             - install_terraform
             - install_boto3
             - install_terraform_runner
             - create_workspaces_parent_dir
 
-        install_terraform:
+        install_prereqs:
           packages:
             yum:
-              yum-utils: [ ]
-              unzip: [ ]
+              yum-utils: []
+              unzip: []
               coreutils: []
+              python3-pip: []
+              awscli: []
+              jq: []
+              git: []
+          commands:
+            00_upgrade_pip:
+              command: 'python3 -m pip install --upgrade pip'
+            01_verify_awscli:
+              command: 'aws --version || true'
+
+        install_terraform:
           commands:
             01_create_dir:                    
               command: mkdir -p /usr/local/bin
             add_hashicorp_repo_to_yum:
               command:
-                yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+                'yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo || true'
             install_terraform_cli_package:
-              command: |
-                curl --retry 3 -fsSL -o /tmp/terraform.zip https://releases.hashicorp.com/1.9.5/terraform_1.9.5_linux_amd64.zip
+              command: !Sub |
+                curl --retry 3 -fsSL -o /tmp/terraform.zip https://releases.hashicorp.com/terraform/${TerraformCliVersion}/terraform_${TerraformCliVersion}_linux_amd64.zip
                 unzip -o /tmp/terraform.zip -d /tmp/
                 chmod +x /tmp/terraform
                 mv /tmp/terraform /usr/local/bin/terraform
@@ -677,13 +689,9 @@ Resources:
         install_boto3:
           commands:
             01_pip_install:
-              command: 'pip3 install boto3'
+              command: 'python3 -m pip install --upgrade boto3'
 
         install_terraform_runner:
-          packages:
-            yum:
-              jq: [ ]
-              git: [ ]
           commands:
             01_download_wheel:
               command: 
@@ -691,7 +699,7 @@ Resources:
                   - 'aws s3 cp s3://${BootstrapBucketName}/dist/terraform_runner-0.1-py3-none-any.whl /tmp/terraform_runner-0.1-py3-none-any.whl --region ${AWS::Region}'
                   - BootstrapBucketName: !ImportValue TerraformEngineBootstrapBucketName
             02_install_wheel:
-              command: 'pip3 install /tmp/terraform_runner-0.1-py3-none-any.whl'
+              command: 'python3 -m pip install --no-cache-dir /tmp/terraform_runner-0.1-py3-none-any.whl'
 
         create_workspaces_parent_dir:
           commands:
@@ -920,7 +928,7 @@ Resources:
       PackageType: Zip
       CodeUri: lambda-functions/provisioning-operations-handler
       Handler: provisioning_operations_handler.handle_sqs_records
-      Runtime: python3.9
+      Runtime: python3.12
       Timeout: 30
       MemorySize: 256
       Architectures:
@@ -1020,7 +1028,7 @@ Resources:
       PackageType: Zip
       CodeUri: lambda-functions/provisioning-operations-handler
       Handler: provisioning_operations_handler.handle_sqs_records
-      Runtime: python3.9
+      Runtime: python3.12
       Timeout: 30
       MemorySize: 256
       Architectures:
@@ -1415,7 +1423,7 @@ Resources:
       PackageType: Zip
       CodeUri: lambda-functions/state_machine_lambdas
       Handler: select_worker_host.select
-      Runtime: python3.9
+      Runtime: python3.12
       Timeout: 60
       Architectures:
         - x86_64
@@ -1476,7 +1484,7 @@ Resources:
       PackageType: Zip
       CodeUri: lambda-functions/state_machine_lambdas
       Handler: get_state_file_outputs.parse
-      Runtime: python3.9
+      Runtime: python3.12
       Timeout: 60
       Environment:
         Variables:
@@ -1550,7 +1558,7 @@ Resources:
       PackageType: Zip
       CodeUri: lambda-functions/state_machine_lambdas
       Handler: poll_command_invocation.poll
-      Runtime: python3.9
+      Runtime: python3.12
       Timeout: 60
       Architectures:
         - x86_64
@@ -1610,7 +1618,7 @@ Resources:
           - CreateNewVpc
           - [!GetAtt VPC.DefaultSecurityGroup]
           - !Ref ExistingSecurityGroupIds
-      Runtime: python3.9
+      Runtime: python3.12
       Timeout: 60
       Environment:
         Variables:
@@ -1673,7 +1681,7 @@ Resources:
           - CreateNewVpc
           - [!GetAtt VPC.DefaultSecurityGroup]
           - !Ref ExistingSecurityGroupIds
-      Runtime: python3.9
+      Runtime: python3.12
       Environment:
         Variables:
           SERVICE_CATALOG_ENDPOINT: !Ref ServiceCatalogEndpoint
@@ -1748,7 +1756,7 @@ Resources:
           - CreateNewVpc
           - [!GetAtt VPC.DefaultSecurityGroup]
           - !Ref ExistingSecurityGroupIds
-      Runtime: python3.9
+      Runtime: python3.12
       Environment:
         Variables:
           SERVICE_CATALOG_ENDPOINT: !Ref ServiceCatalogEndpoint
@@ -1823,7 +1831,7 @@ Resources:
           - CreateNewVpc
           - [!GetAtt VPC.DefaultSecurityGroup]
           - !Ref ExistingSecurityGroupIds
-      Runtime: python3.9
+      Runtime: python3.12
       Environment:
         Variables:
           STATE_BUCKET_NAME: !Ref TerraformStateBucket
@@ -1859,7 +1867,7 @@ Resources:
           - CreateNewVpc
           - [!GetAtt VPC.DefaultSecurityGroup]
           - !Ref ExistingSecurityGroupIds
-      Runtime: python3.9
+      Runtime: python3.12
       Environment:
         Variables:
           SERVICE_CATALOG_ENDPOINT: !Ref ServiceCatalogEndpoint
